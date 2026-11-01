@@ -1,0 +1,48 @@
+name: Sync Notion
+
+# 每小时从 Notion 拉文章到 src/posts，有变化就提交，Vercel 自动重新部署。
+#
+# 为什么是每小时：装 @elog/cli 大约 40 秒，私有仓库的 Actions 额度是 2000 分钟/月，
+# 每小时一次约 540 分钟/月，留足余量。说说的同步在 sync-memos.yml，频率更高。
+on:
+  schedule:
+    - cron: '0 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: notion-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: 安装 Elog
+        run: npm i -g @elog/cli@0.14.7
+
+      - name: 同步 Notion
+        env:
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
+        run: elog sync -c elog.config.cjs
+
+      - name: 有变化就提交
+        run: |
+          git config user.name "notion-sync[bot]"
+          git config user.email "notion-sync@users.noreply.github.com"
+          git add src/posts src/chatters public/notion-assets
+          if git diff --cached --quiet; then
+            echo "没有变化，跳过提交"
+          else
+            git commit -m "chore(posts): sync from notion"
+            git push
+          fi
