@@ -33,7 +33,9 @@ jobs:
         env:
           NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
           NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
-        run: elog sync -c elog.config.cjs
+        run: |
+          elog sync -c elog.posts.cjs || echo "::warning::文章同步失败，请看上面的 elog 输出"
+          elog sync -c elog.chatters.cjs || echo "::warning::杂谈同步失败，请看上面的 elog 输出"
 
       - name: 有变化就提交
         run: |

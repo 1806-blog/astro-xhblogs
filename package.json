@@ -7,13 +7,15 @@
     "dev": "astro dev",
     "start": "astro dev",
     "build": "astro build",
-    "build:notion": "elog sync -c elog.config.cjs && astro build",
+    "build:notion": "npm run sync:notion && astro build",
     "preview": "astro preview",
-    "sync:notion": "elog sync -e .env -c elog.config.cjs",
+    "sync:notion": "elog sync -e .env -c elog.posts.cjs && elog sync -e .env -c elog.chatters.cjs",
     "sync:notion:full": "elog sync -e .env -c elog.config.cjs --disable-cache",
     "astro": "astro",
     "sync:memos": "node scripts/memos-sync.mjs",
-    "sync:memos:dry": "node scripts/memos-sync.mjs --dry-run"
+    "sync:memos:dry": "node scripts/memos-sync.mjs --dry-run",
+    "sync:notion:posts": "elog sync -e .env -c elog.posts.cjs",
+    "sync:notion:chatters": "elog sync -e .env -c elog.chatters.cjs"
   },
   "dependencies": {
     "@astrojs/react": "^4.4.0",
