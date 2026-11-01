@@ -48,6 +48,8 @@ const MEMOS_BASE = (process.env.MEMOS_BASE_URL || '').replace(/\/+$/, '');
 const MEMOS_TOKEN = process.env.MEMOS_TOKEN || '';
 const STORAGE_API = (process.env.STORAGE_API || 'https://storage.nightcord.de5.net').replace(/\/+$/, '');
 const STORAGE_PUBLIC = (process.env.STORAGE_PUBLIC || 'https://r2.nightcord.de5.net').replace(/\/+$/, '');
+// 默认只同步 Public 的说说；设成 1 则连 PRIVATE 一起发（适合"Memos 就是博客草稿箱"的用法）
+const INCLUDE_PRIVATE = ['1', 'true', 'yes'].includes(String(process.env.MEMOS_INCLUDE_PRIVATE || '').toLowerCase());
 
 /* --------------------------------- 工具 ---------------------------------- */
 
@@ -233,7 +235,7 @@ async function main() {
   // 只处理公开可见、非评论、正常状态
   const memos = raw.filter((m) => {
     const vis = String(m.visibility || '').toUpperCase();
-    if (vis && vis !== 'PUBLIC' && vis !== 'VISIBILITY_UNSPECIFIED') return false;
+    if (!INCLUDE_PRIVATE && vis && vis !== 'PUBLIC' && vis !== 'VISIBILITY_UNSPECIFIED') return false;
     if (m.parent) return false; // 评论
     const state = String(m.state || '').toUpperCase();
     if (state && state !== 'NORMAL' && state !== 'STATE_UNSPECIFIED') return false;

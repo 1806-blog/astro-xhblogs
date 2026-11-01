@@ -31,6 +31,8 @@ jobs:
         env:
           MEMOS_BASE_URL: ${{ secrets.MEMOS_BASE_URL }}
           MEMOS_TOKEN: ${{ secrets.MEMOS_TOKEN }}
+          # 想让私密说说也发出来就设成 true
+          MEMOS_INCLUDE_PRIVATE: 'false'
           STORAGE_API: ${{ vars.STORAGE_API }}
           STORAGE_PUBLIC: ${{ vars.STORAGE_PUBLIC }}
         run: node scripts/memos-sync.mjs
