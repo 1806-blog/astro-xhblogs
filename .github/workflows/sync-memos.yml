@@ -1,10 +1,13 @@
 name: Sync Memos
 
-# 每 10 分钟拉一次 Memos，有新说说就写进 src/moments 并提交，
+# 每 30 分钟拉一次 Memos，有新说说就写进 src/moments 并提交，
 # 提交后 Vercel 会自动重新部署。
+#
+# 为什么是 30 分钟而不是 10 分钟：私有仓库的 Actions 免费额度是 2000 分钟/月,
+# */10 一天跑 144 次，一个月会超；*/30 是 48 次/天，约 720 分钟/月，留有余量。
 on:
   schedule:
-    - cron: '*/10 * * * *'
+    - cron: '*/30 * * * *'
   workflow_dispatch:
 
 permissions:
