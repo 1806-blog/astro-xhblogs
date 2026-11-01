@@ -1,0 +1,36 @@
+---
+import fs from 'node:fs';
+import path from 'node:path';
+import matter from 'gray-matter';
+
+import Layout from '../../layouts/Layout.astro';
+import ChatterPage from '../../components/pages/ChatterPage';
+
+const dir = path.join(process.cwd(), 'src', 'chatters');
+let chatters: any[] = [];
+try {
+  chatters = fs
+    .readdirSync(dir)
+    .filter((f) => f.endsWith('.md'))
+    .map((fileName) => {
+      const slug = fileName.replace(/\.md$/, '');
+      const { data, content } = matter(fs.readFileSync(path.join(dir, fileName), 'utf8'));
+      return {
+        slug,
+        title: (data.title as string) || '',
+        date: (data.date as string) || '未知时间',
+        tags: data.tags || [],
+        mood: (data.mood as string) || '',
+        cover: (data.cover as string) || '',
+        content: content.replace(/^#+ .*\n/m, ''),
+      };
+    })
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+} catch (e) {
+  console.error('读取杂谈失败', e);
+}
+---
+
+<Layout title="杂谈" description="日常碎片与灵感记录">
+  <ChatterPage client:load chatters={chatters} />
+</Layout>

@@ -1,0 +1,76 @@
+---
+import fs from 'node:fs';
+import path from 'node:path';
+import matter from 'gray-matter';
+
+import Layout from '../layouts/Layout.astro';
+import HomePage from '../components/pages/HomePage';
+import { albums } from '../data/albums';
+import { siteConfig } from '../siteConfig';
+
+function formatUpdateTime(dateString: string) {
+  if (!dateString || dateString === '1970-01-01') return '刚刚更新';
+  try {
+    const d = new Date(dateString);
+    if (isNaN(d.getTime())) return dateString;
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    const hours = String(d.getHours()).padStart(2, '0');
+    const mins = String(d.getMinutes()).padStart(2, '0');
+    if (hours === '00' && mins === '00') return `${year}.${month}.${day}`;
+    return `${year}.${month}.${day} ${hours}:${mins}`;
+  } catch {
+    return dateString;
+  }
+}
+
+function readCollection(dirName: string) {
+  const dir = path.join(process.cwd(), 'src', dirName);
+  if (!fs.existsSync(dir)) return [];
+  return fs
+    .readdirSync(dir)
+    .filter((f) => f.endsWith('.md'))
+    .map((fileName) => {
+      const { data, content } = matter(fs.readFileSync(path.join(dir, fileName), 'utf8'));
+      const rawDate = (data.date as string) || '1970-01-01';
+      return {
+        slug: fileName.replace(/\.md$/, ''),
+        ...data,
+        title: (data.title as string) || '',
+        description: (data.description as string) || content.substring(0, 60),
+        // 没写 cover 的文章/杂谈，用默认封面兜底，否则 <img src=""> 会破图
+        cover: (data.cover as string) || siteConfig.defaultPostCover,
+        content,
+        date: String(rawDate),
+        formattedDate: formatUpdateTime(String(rawDate)),
+      };
+    })
+    .sort((a: any, b: any) => {
+      const dateA = new Date(a.date).getTime();
+      const dateB = new Date(b.date).getTime();
+      if (dateB !== dateA) return dateB - dateA;
+      return b.slug.localeCompare(a.slug);
+    });
+}
+
+const allPosts = readCollection('posts');
+const allChatters = readCollection('chatters');
+
+const realPhotoCount = albums.reduce((total, album) => total + album.photos.length, 0);
+const latestAlbum =
+  albums.length > 0
+    ? albums[0]
+    : { id: '', title: '照片墙', description: '查看摄影', cover: siteConfig.photoWallImage, date: '' };
+---
+
+<Layout>
+  <HomePage
+    client:load
+    allPosts={allPosts}
+    allChatters={allChatters}
+    chatterCount={allChatters.length}
+    realPhotoCount={realPhotoCount}
+    latestAlbum={latestAlbum}
+  />
+</Layout>

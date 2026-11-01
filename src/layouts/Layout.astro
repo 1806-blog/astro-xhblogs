@@ -1,0 +1,114 @@
+---
+import '../styles/globals.css';
+import 'katex/dist/katex.min.css';
+import { siteConfig } from '../siteConfig';
+import BackgroundEffects from '../components/BackgroundEffects';
+import BackgroundSlider from '../components/BackgroundSlider';
+import SplashScreen from '../components/SplashScreen';
+import DanmakuBackground from '../components/DanmakuBackground';
+import MobileBackButton from '../components/MobileBackButton';
+
+interface Props {
+  title?: string;
+  description?: string;
+}
+
+const { title, description } = Astro.props;
+const pageTitle = title ? `${title} · ${siteConfig.title}` : siteConfig.title;
+// 截图/调试用：?nosplash=1 跳过开屏动画
+const skipSplash = Astro.url.searchParams.has('nosplash');
+---
+
+<html lang="zh-CN" class="h-full antialiased">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{pageTitle}</title>
+    <meta name="description" content={description ?? siteConfig.bio} />
+    <link rel="icon" href={siteConfig.faviconUrl} />
+    <link rel="apple-touch-icon" href={siteConfig.faviconUrl} />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;700;900&family=Geist:wght@400;500;700&family=Geist+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <style is:inline>
+      #app-mount-root {
+        opacity: 0;
+        visibility: hidden;
+        pointer-events: none;
+      }
+      html.splash-seen #app-mount-root {
+        opacity: 1 !important;
+        visibility: visible !important;
+        pointer-events: auto !important;
+      }
+      @keyframes gradientMove {
+        0% {
+          background-position: 0% 50%;
+        }
+        50% {
+          background-position: 100% 50%;
+        }
+        100% {
+          background-position: 0% 50%;
+        }
+      }
+    </style>
+    <script is:inline>
+      try {
+        if (sessionStorage.getItem('hasSeenSplash') === 'true') {
+          document.documentElement.classList.add('splash-seen');
+        }
+        if (new URLSearchParams(location.search).has('nosplash')) {
+          document.documentElement.classList.add('splash-seen');
+        }
+      } catch (e) {}
+    </script>
+  </head>
+
+  <body
+    class="w-screen overflow-x-hidden min-h-full flex flex-col relative transition-colors duration-1000 bg-slate-50 dark:bg-slate-950 font-serif"
+  >
+    {!skipSplash && <SplashScreen client:load />}
+
+    <div id="app-mount-root" class="flex-1 flex flex-col transition-opacity duration-1000">
+      <div class="fixed inset-0 z-[-1] pointer-events-none overflow-hidden">
+        {!siteConfig.useGradient && <BackgroundSlider client:load />}
+        <div class="absolute inset-0 z-[-9] bg-white/30 dark:bg-slate-900/40 backdrop-blur-md transition-colors duration-1000"></div>
+
+        <div
+          class="absolute inset-0 z-[-8] opacity-60 dark:opacity-20 mix-blend-color transition-opacity duration-1000 transform-gpu"
+          style={`background: linear-gradient(-45deg, ${siteConfig.themeColors.join(', ')}); background-size: 400% 400%; animation: gradientMove 15s ease infinite;`}
+        >
+        </div>
+
+        <div class="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-white/40 dark:bg-indigo-900/20 blur-[100px] rounded-full z-[-7] md:mix-blend-overlay"></div>
+        <div class="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-indigo-400/30 dark:bg-purple-900/30 blur-[100px] rounded-full z-[-7] md:mix-blend-overlay"></div>
+
+        <div class="hidden md:block absolute inset-0 w-full h-full">
+          <BackgroundEffects client:load />
+        </div>
+      </div>
+
+      <div class="hidden md:block">
+        <DanmakuBackground client:load />
+      </div>
+
+      <div class="relative z-10 flex-1 flex flex-col">
+        <slot />
+      </div>
+
+      <div class="md:hidden block">
+        <MobileBackButton client:load />
+      </div>
+    </div>
+
+    <style is:inline>
+      html {
+        --font-serif: 'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', 'SimSun', serif;
+      }
+    </style>
+  </body>
+</html>

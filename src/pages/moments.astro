@@ -1,0 +1,38 @@
+---
+import fs from 'node:fs';
+import path from 'node:path';
+import matter from 'gray-matter';
+
+import Layout from '../layouts/Layout.astro';
+import MomentsPage from '../components/pages/MomentsPage';
+import { siteConfig } from '../siteConfig';
+
+let allMoments: any[] = [];
+
+const possibleDirs = [
+  path.join(process.cwd(), 'src', 'posts', 'moments'),
+  path.join(process.cwd(), 'src', 'moments'),
+];
+
+possibleDirs.forEach((dir) => {
+  if (!fs.existsSync(dir)) return;
+  fs.readdirSync(dir)
+    .filter((f) => f.endsWith('.md'))
+    .forEach((fileName) => {
+      const { data, content } = matter(fs.readFileSync(path.join(dir, fileName), 'utf8'));
+      allMoments.push({
+        id: fileName.replace(/\.md$/, ''),
+        date: (data.date as string) || '1970-01-01',
+        location: (data.location as string) || '',
+        images: data.images || [],
+        content: content.trim(),
+      });
+    });
+});
+
+allMoments = Array.from(new Map(allMoments.map((item) => [item.id, item])).values());
+---
+
+<Layout title="说说" description="生活动态与瞬间记录">
+  <MomentsPage client:load moments={allMoments} authorName={siteConfig.authorName} avatarUrl={siteConfig.avatarUrl} />
+</Layout>

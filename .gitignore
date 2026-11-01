@@ -1,0 +1,24 @@
+node_modules/
+dist/
+.astro/
+.vercel/
+shots/
+*.log
+
+# 密钥绝不入库
+.env
+.env.*
+!.env.example
+
+# Elog 同步缓存
+elog.cache.json
+.elog/
+
+# Notion 同步下来的图片（体积大，按需保留；想提交就去掉这行）
+# public/notion-assets/
+
+.DS_Store
+Thumbs.db
+
+# 临时脚本/tmp 文件
+tmp-*

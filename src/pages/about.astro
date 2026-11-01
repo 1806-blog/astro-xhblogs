@@ -1,0 +1,113 @@
+---
+import fs from 'node:fs';
+import path from 'node:path';
+import matter from 'gray-matter';
+
+import { unified } from 'unified';
+import remarkParse from 'remark-parse';
+import remarkGfm from 'remark-gfm';
+import remarkMath from 'remark-math';
+import remarkRehype from 'remark-rehype';
+import rehypeHighlight from 'rehype-highlight';
+import rehypeKatex from 'rehype-katex';
+import rehypeStringify from 'rehype-stringify';
+
+import 'highlight.js/styles/atom-one-dark.css';
+import 'katex/dist/katex.min.css';
+import '../styles/article.css';
+import '../styles/about.css';
+
+import Layout from '../layouts/Layout.astro';
+import AboutPage from '../components/pages/AboutPage';
+
+function getDirActivities(dirName: string, typeLabel: '文章' | '杂谈' | '说说', linkPrefix: string) {
+  const dirPath = path.join(process.cwd(), 'src', dirName);
+  if (!fs.existsSync(dirPath)) return [];
+
+  return fs
+    .readdirSync(dirPath)
+    .filter((f) => f.endsWith('.md'))
+    .map((file) => {
+      const { data } = matter(fs.readFileSync(path.join(dirPath, file), 'utf8'));
+      return {
+        id: `${dirName}-${file}`,
+        type: typeLabel,
+        title: (data.title as string) || file.replace('.md', ''),
+        date: data.date ? new Date(data.date as string).toISOString() : '1970-01-01T00:00:00Z',
+        url: `/${linkPrefix}/${file.replace('.md', '')}`,
+      };
+    });
+}
+
+const fullPath = path.join(process.cwd(), 'src', 'about', 'about.md');
+let contentHtml = '博主很懒，还没有写自我介绍哦...';
+let coverImage = 'https://bu.dusays.com/2026/03/24/69c23dc278c78.jpg';
+
+try {
+  const fileContents = fs.readFileSync(fullPath, 'utf8');
+  const { data, content: source } = matter(fileContents);
+  if (data.cover) coverImage = data.cover as string;
+
+  let content = source;
+  content = content.replace(/^```\s*$/gm, '```cpp');
+  content = content.replace(/^(\s*\d+)\.([^ \n])/gm, '$1. $2');
+  content = content.replace(/\r\n/g, '\n').replace(/^[ \t]+$/gm, '');
+
+  const blocks = content.split(/(```[\s\S]*?```|~~~[\s\S]*?~~~)/g);
+  content = blocks
+    .map((block, index) => {
+      if (index % 2 === 1) return block;
+      return block.replace(/\n{3,}/g, (match) => {
+        const brCount = match.length - 2;
+        return '\n\n' + '<br>'.repeat(brCount) + '\n\n';
+      });
+    })
+    .join('');
+
+  const processed = await unified()
+    .use(remarkParse)
+    .use(remarkGfm)
+    .use(remarkMath)
+    .use(remarkRehype, { allowDangerousHtml: true })
+    // @ts-ignore
+    .use(rehypeHighlight, {
+      detect: true,
+      ignoreMissing: true,
+      subset: [
+        'cpp',
+        'c',
+        'python',
+        'java',
+        'javascript',
+        'typescript',
+        'go',
+        'rust',
+        'bash',
+        'json',
+        'html',
+        'css',
+        'sql',
+        'xml',
+      ],
+    })
+    .use(rehypeKatex)
+    .use(rehypeStringify, { allowDangerousHtml: true })
+    .process(content);
+
+  contentHtml = processed.toString();
+} catch (e) {
+  console.error('读取 about.md 失败', e);
+}
+
+const posts = getDirActivities('posts', '文章', 'posts');
+const chatters = getDirActivities('chatters', '杂谈', 'chatter');
+const moments = getDirActivities('moments', '说说', 'moments');
+
+const allActivities = [...posts, ...chatters, ...moments].sort(
+  (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+);
+---
+
+<Layout title="关于">
+  <AboutPage client:load contentHtml={contentHtml} coverImage={coverImage} activities={allActivities} />
+</Layout>

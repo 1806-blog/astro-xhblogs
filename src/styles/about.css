@@ -1,0 +1,16 @@
+/* 关于页在通用 prose 样式之上的局部差异 */
+.prose s, .prose del { text-decoration-line: line-through !important; opacity: 0.6; }
+.prose blockquote { quotes: none !important; }
+.prose blockquote p::before, .prose blockquote p::after { display: none !important; content: none !important; }
+.prose br { display: block !important; content: '' !important; margin-top: 0.5em !important; }
+.prose pre { border-radius: 1.25rem !important; }
+.prose pre code, .prose p code, .prose li code {
+  font-family: ui-rounded, 'Quicksand', 'Nunito', 'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'Source Code Pro', Menlo, Monaco, Consolas, monospace !important;
+  font-variant-ligatures: contextual !important;
+  font-weight: 500 !important;
+  letter-spacing: 0.02em !important;
+}
+.prose p code, .prose li code { border-radius: 0.5rem !important; }
+@media (min-width: 768px) {
+  .prose pre { border-radius: 1.5rem !important; }
+}

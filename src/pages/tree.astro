@@ -1,0 +1,38 @@
+---
+import fs from 'node:fs';
+import path from 'node:path';
+import matter from 'gray-matter';
+
+import Layout from '../layouts/Layout.astro';
+import TreePage from '../components/pages/TreePage';
+
+function getLocalItems(directoryName: string, typeName: string) {
+  const dir = path.join(process.cwd(), 'src', directoryName);
+  const items: any[] = [];
+  if (!fs.existsSync(dir)) return items;
+  return fs
+    .readdirSync(dir)
+    .filter((f) => f.endsWith('.md'))
+    .map((fileName) => {
+      const { data, content } = matter(fs.readFileSync(path.join(dir, fileName), 'utf8'));
+      const realSlug = fileName.replace(/\.md$/, '');
+      return {
+        id: (data.id as string) || realSlug,
+        slug: realSlug,
+        title: (data.title as string) || '',
+        type: typeName,
+        date: (data.date as string) || '2026-05-01',
+        cover: (data.cover as string) || (data.image as string) || null,
+        content: content.trim(),
+      };
+    });
+}
+
+const posts = getLocalItems('posts', 'post');
+const chatters = getLocalItems('chatters', 'chatter');
+const moments = getLocalItems('moments', 'moment');
+---
+
+<Layout title="灵境">
+  <TreePage client:load posts={posts} chatters={chatters} moments={moments} />
+</Layout>
