@@ -22,3 +22,8 @@ Thumbs.db
 
 # 临时脚本/tmp 文件
 tmp-*
+
+# Cloudflare Worker（本地密钥与依赖，绝不入库）
+worker/.dev.vars
+worker/node_modules/
+.wrangler/
