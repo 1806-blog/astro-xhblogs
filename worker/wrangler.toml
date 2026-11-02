@@ -1,0 +1,16 @@
+name = "blog-sync-trigger"
+main = "src/index.js"
+compatibility_date = "2026-10-31"
+
+# Cloudflare 的 cron 是准点的（免费额度 10 万请求/天，这个用法一天 288 次）
+[triggers]
+crons = ["*/5 * * * *"]
+
+[vars]
+GITHUB_OWNER = "1806-blog"
+GITHUB_REPO = "astro-xhblogs"
+GITHUB_REF = "main"
+
+# 密钥不要写在这里，用命令行写入：
+#   wrangler secret put GITHUB_TOKEN
+#   wrangler secret put MANUAL_KEY
