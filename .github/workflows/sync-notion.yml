@@ -37,6 +37,13 @@ jobs:
           elog sync -c elog.posts.cjs || echo "::warning::文章同步失败，请看上面的 elog 输出"
           elog sync -c elog.chatters.cjs || echo "::warning::杂谈同步失败，请看上面的 elog 输出"
 
+      # Elog 只会新增/更新，不会删。这一步把「Notion 里已删除但本地还留着」的 md 清掉。
+      - name: 清理已删除的文档
+        env:
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
+        run: node scripts/notion-prune.mjs
+
       - name: 有变化就提交
         run: |
           git config user.name "notion-sync[bot]"
