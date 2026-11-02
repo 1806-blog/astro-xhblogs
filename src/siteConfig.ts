@@ -57,7 +57,7 @@ export const siteConfig = {
     // PJSK / 网易云 每次刷新都随机抽，顺序也随机（像随机电台）
     sekaiPick: 8,
     // 网易云每次抽几首（要小于歌单总数，否则等于全要，只有顺序随机）
-    neteasePick: 5,
+    neteasePick: 8,
     // 默认音量 0~1（0.35 差不多是刚好能听见的背景音）
     volume: 0.35,
   },

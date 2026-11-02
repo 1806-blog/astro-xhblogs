@@ -3,11 +3,17 @@ export const prerender = false;
 import { siteConfig } from '../../siteConfig';
 import sekaiCacheFile from '../../data/sekai-cache.json';
 
+// 这个歌单要登录态才能看到全部曲目：匿名请求只返回 10 首，
+// 带上 NETEASE_COOKIE 才是完整的 200+ 首。
+// Vercel 上走 process.env（环境变量注入）；本地 dev 的 .env 由 Vite 注入到 import.meta.env
+const NETEASE_COOKIE =
+  process.env.NETEASE_COOKIE || (import.meta as any).env?.NETEASE_COOKIE || 'NMTID=1';
+
 const NET_EASE_HEADERS = {
   'User-Agent':
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
   Referer: 'https://music.163.com/',
-  Cookie: 'NMTID=1',
+  Cookie: NETEASE_COOKIE,
 };
 
 type Song = {
@@ -18,6 +24,8 @@ type Song = {
   url: string;
   lrc?: string;
   source: 'sekai' | 'netease';
+  /** 网易云原始曲目 id，取歌词用，返回前会剔掉 */
+  _rawId?: number;
   /** 从第几秒开始播放（PJSK 曲目有前奏空白，对应 JSON 的 f 字段） */
   startSec?: number;
 };
@@ -97,12 +105,22 @@ async function mapLimit<T, R>(items: T[], limit: number, fn: (item: T) => Promis
 
 /* -------------------------------- 网易云 --------------------------------- */
 
-async function fetchNeteasePlaylist(): Promise<Song[]> {
+// 歌单有 200+ 首，那个 JSON 有好几百 KB，不能每刷新一次就拉一遍。
+// 曲目列表缓存 10 分钟；歌词按曲目 id 单独缓存（歌词基本不变），
+// 而且只给「抽中的那几首」取，不是给全歌单取。
+const NETEASE_LIST_TTL = 10 * 60 * 1000;
+let neteaseListCache: { at: number; items: Song[] } | null = null;
+const lyricCache = new Map<string, string>();
+
+async function fetchNeteaseTracks(): Promise<Song[]> {
   if (!PLAYLIST_ID) throw new Error('未配置 neteasePlaylistId');
+  if (neteaseListCache && Date.now() - neteaseListCache.at < NETEASE_LIST_TTL) {
+    return neteaseListCache.items;
+  }
 
   const res = await fetch(`https://music.163.com/api/playlist/detail?id=${PLAYLIST_ID}`, {
     headers: NET_EASE_HEADERS,
-    signal: AbortSignal.timeout(10000),
+    signal: AbortSignal.timeout(12000),
   });
   if (!res.ok) throw new Error(`playlist HTTP ${res.status}`);
 
@@ -115,7 +133,8 @@ async function fetchNeteasePlaylist(): Promise<Song[]> {
     console.log(
       '[music] netease keys:', Object.keys(data || {}).join(','),
       '| tracks:', pl?.tracks?.length,
-      '| trackIds:', pl?.trackIds?.length
+      '| trackCount:', pl?.trackCount,
+      '| 带 Cookie:', NETEASE_COOKIE !== 'NMTID=1'
     );
   }
 
@@ -139,7 +158,7 @@ async function fetchNeteasePlaylist(): Promise<Song[]> {
 
   if (!tracks.length) throw new Error(`playlist 无曲目 (code=${data?.code})`);
 
-  const base = tracks.map((t) => ({
+  const items: Song[] = tracks.map((t) => ({
     id: `ne-${t.id}`,
     name: t.name || '未知歌曲',
     artist: (t.ar || t.artists || [])[0]?.name || '未知歌手',
@@ -149,22 +168,30 @@ async function fetchNeteasePlaylist(): Promise<Song[]> {
     _rawId: t.id,
   }));
 
-  // 歌词逐首取（限流 3 并发，失败就跳过，不影响播放）
-  const withLrc = await mapLimit(base, 3, async (song) => {
+  neteaseListCache = { at: Date.now(), items };
+  return items;
+}
+
+/** 只给抽中的曲目配歌词，结果按 id 缓存 */
+async function attachLyrics(songs: Song[]): Promise<Song[]> {
+  return mapLimit(songs, 3, async (song: any) => {
+    const rawId = song._rawId;
+    if (!rawId) return song;
+    if (lyricCache.has(rawId)) return { ...song, lrc: lyricCache.get(rawId) };
     try {
       const r = await fetch(
-        `https://music.163.com/api/song/lyric?id=${song._rawId}&lv=-1&kv=-1&tv=-1`,
+        `https://music.163.com/api/song/lyric?id=${rawId}&lv=-1&kv=-1&tv=-1`,
         { headers: NET_EASE_HEADERS, signal: AbortSignal.timeout(6000) }
       );
       if (!r.ok) return song;
       const j: any = await r.json();
-      return { ...song, lrc: j?.lrc?.lyric || '' };
+      const lyric = j?.lrc?.lyric || '';
+      lyricCache.set(rawId, lyric);
+      return { ...song, lrc: lyric };
     } catch {
       return song;
     }
   });
-
-  return withLrc.map(({ _rawId, ...rest }: any) => rest);
 }
 
 /* --------------------------------- PJSK --------------------------------- */
@@ -251,8 +278,9 @@ export async function GET({ request }: { request: Request }) {
 
   // 两边都拿，任何一边挂了都不影响另一边；两边都打乱后随机取
   const [netease, sekai] = await Promise.all([
-    fetchNeteasePlaylist()
+    fetchNeteaseTracks()
       .then((all) => shuffle(all).slice(0, NETEASE_PICK))
+      .then((picked) => attachLyrics(picked))
       .catch((e) => {
         errors.push(`netease: ${e.message}`);
         return [] as Song[];
@@ -265,7 +293,7 @@ export async function GET({ request }: { request: Request }) {
       }),
   ]);
 
-  const playlist = interleave(sekai, netease);
+  const playlist = interleave(sekai, netease).map(({ _rawId, ...rest }) => rest);
 
   if (!playlist.length) {
     return new Response(
