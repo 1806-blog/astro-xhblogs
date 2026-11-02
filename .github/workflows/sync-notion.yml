@@ -1,12 +1,13 @@
 name: Sync Notion
 
-# 每小时从 Notion 拉文章到 src/posts，有变化就提交，Vercel 自动重新部署。
+# 每 10 分钟从 Notion 拉文章到 src/posts，有变化就提交，Vercel 自动重新部署。
 #
-# 为什么是每小时：装 @elog/cli 大约 40 秒，私有仓库的 Actions 额度是 2000 分钟/月，
-# 每小时一次约 540 分钟/月，留足余量。说说的同步在 sync-memos.yml，频率更高。
+# 仓库已转为公开，Actions 时长不限量。装 @elog/cli 要几十秒，所以：
+#   - 用 actions/cache 缓存 npm 包，第二次起安装只要几秒
+#   - 频率取 10 分钟（文章不像说说那么急，没必要挤到 5 分钟）
 on:
   schedule:
-    - cron: '0 * * * *'
+    - cron: '*/10 * * * *'
   workflow_dispatch:
 
 permissions:
@@ -26,8 +27,15 @@ jobs:
         with:
           node-version: '22'
 
+      - name: 缓存 npm
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-npm-elog-0.14.7
+          restore-keys: ${{ runner.os }}-npm-
+
       - name: 安装 Elog
-        run: npm i -g @elog/cli@0.14.7
+        run: npm i -g @elog/cli@0.14.7 --prefer-offline --no-audit --no-fund
 
       - name: 同步 Notion
         env:
