@@ -284,7 +284,8 @@ export async function GET({ request }: { request: Request }) {
   return new Response(JSON.stringify(playlist), {
     headers: {
       'content-type': 'application/json; charset=utf-8',
-      'cache-control': 'public, max-age=60',
+      // 每次刷新都重新抽，别让缓存把「随机」吃掉
+      'cache-control': 'no-store',
       // HTTP 头只允许 ASCII，中文要编码
       ...(errors.length ? { 'x-music-warnings': encodeURIComponent(errors.join(' | ')) } : {}),
     },
