@@ -2,18 +2,16 @@ export const prerender = false;
 
 import { siteConfig } from '../../siteConfig';
 import sekaiCacheFile from '../../data/sekai-cache.json';
+import neteaseTracksFile from '../../data/neteaseTracks.json';
 
-// 这个歌单要登录态才能看到全部曲目：匿名请求只返回 10 首，
-// 带上 NETEASE_COOKIE 才是完整的 200+ 首。
-// Vercel 上走 process.env（环境变量注入）；本地 dev 的 .env 由 Vite 注入到 import.meta.env
-const NETEASE_COOKIE =
-  process.env.NETEASE_COOKIE || (import.meta as any).env?.NETEASE_COOKIE || 'NMTID=1';
-
+// 这个歌单要登录态才能看到全部曲目，但线上不该带账号凭证跑。
+// 做法：本地用 scripts/fetch-netease-tracks.mjs 拉一次全量存成 JSON，
+// 运行时只读那个文件，匿名只用来取歌词。
 const NET_EASE_HEADERS = {
   'User-Agent':
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
   Referer: 'https://music.163.com/',
-  Cookie: NETEASE_COOKIE,
+  Cookie: 'NMTID=1',
 };
 
 type Song = {
@@ -36,7 +34,6 @@ const SEKAI_API: string = MUSIC.sekaiApi ?? 'https://api.nightcord.de5.net/sekai
 const SEKAI_CDN: string = MUSIC.sekaiCdn ?? 'https://assets.nightcord.de5.net/music';
 const SEKAI_PICK: number = MUSIC.sekaiPick ?? 8;
 const NETEASE_PICK: number = MUSIC.neteasePick ?? 10;
-const PLAYLIST_ID: string = MUSIC.neteasePlaylistId ?? '';
 
 /* --------------------------------- 随机 --------------------------------- */
 
@@ -105,71 +102,27 @@ async function mapLimit<T, R>(items: T[], limit: number, fn: (item: T) => Promis
 
 /* -------------------------------- 网易云 --------------------------------- */
 
-// 歌单有 200+ 首，那个 JSON 有好几百 KB，不能每刷新一次就拉一遍。
-// 曲目列表缓存 10 分钟；歌词按曲目 id 单独缓存（歌词基本不变），
-// 而且只给「抽中的那几首」取，不是给全歌单取。
-const NETEASE_LIST_TTL = 10 * 60 * 1000;
-let neteaseListCache: { at: number; items: Song[] } | null = null;
+// 曲目列表来自 src/data/neteaseTracks.json（由 scripts/fetch-netease-tracks.mjs 生成）。
+// 线上不碰账号凭证：只读静态文件，匿名 API 只用来取歌词。
+const NETEASE_TRACKS: Song[] = ((neteaseTracksFile as any).tracks ?? []).map((t: any) => ({
+  id: `ne-${t.id}`,
+  name: t.name || '未知歌曲',
+  artist: t.artist || '未知歌手',
+  cover: t.cover || '',
+  url: `https://music.163.com/song/media/outer/url?id=${t.id}.mp3`,
+  source: 'netease' as const,
+  _rawId: t.id,
+}));
+
 const lyricCache = new Map<string, string>();
 
-async function fetchNeteaseTracks(): Promise<Song[]> {
-  if (!PLAYLIST_ID) throw new Error('未配置 neteasePlaylistId');
-  if (neteaseListCache && Date.now() - neteaseListCache.at < NETEASE_LIST_TTL) {
-    return neteaseListCache.items;
-  }
-
-  const res = await fetch(`https://music.163.com/api/playlist/detail?id=${PLAYLIST_ID}`, {
-    headers: NET_EASE_HEADERS,
-    signal: AbortSignal.timeout(12000),
-  });
-  if (!res.ok) throw new Error(`playlist HTTP ${res.status}`);
-
-  const data: any = await res.json();
-  // 该接口有两种返回形态：{ playlist } 或 { result }
-  const pl = data?.playlist ?? data?.result ?? null;
-  let tracks: any[] = pl?.tracks ?? [];
-
+function fetchNeteaseTracks(): Song[] {
+  if (!NETEASE_TRACKS.length) throw new Error('neteaseTracks.json 为空，先跑 scripts/fetch-netease-tracks.mjs');
   if (VERBOSE_LOG) {
-    console.log(
-      '[music] netease keys:', Object.keys(data || {}).join(','),
-      '| tracks:', pl?.tracks?.length,
-      '| trackCount:', pl?.trackCount,
-      '| 带 Cookie:', NETEASE_COOKIE !== 'NMTID=1'
-    );
+    console.log('[music] 网易云曲库:', NETEASE_TRACKS.length, '首 | 歌单:', (neteaseTracksFile as any).playlistName,
+      '| 更新于:', (neteaseTracksFile as any).updatedAt);
   }
-
-  // 老接口有时只给 trackIds 不内联 track 详情，这里补一次查询
-  if (!tracks.length && pl?.trackIds?.length) {
-    const ids = pl.trackIds.slice(0, 60).map((t: any) => t.id);
-    const detail = await fetch(`https://music.163.com/api/song/detail/?ids=[${ids.join(',')}]`, {
-      headers: NET_EASE_HEADERS,
-      signal: AbortSignal.timeout(12000),
-    });
-    if (detail.ok) {
-      const dj: any = await detail.json();
-      tracks = (dj.songs ?? []).map((s: any) => ({
-        id: s.id,
-        name: s.name,
-        ar: s.artists,
-        al: s.album,
-      }));
-    }
-  }
-
-  if (!tracks.length) throw new Error(`playlist 无曲目 (code=${data?.code})`);
-
-  const items: Song[] = tracks.map((t) => ({
-    id: `ne-${t.id}`,
-    name: t.name || '未知歌曲',
-    artist: (t.ar || t.artists || [])[0]?.name || '未知歌手',
-    cover: t.al?.picUrl || t.album?.picUrl || '',
-    url: `https://music.163.com/song/media/outer/url?id=${t.id}.mp3`,
-    source: 'netease' as const,
-    _rawId: t.id,
-  }));
-
-  neteaseListCache = { at: Date.now(), items };
-  return items;
+  return NETEASE_TRACKS;
 }
 
 /** 只给抽中的曲目配歌词，结果按 id 缓存 */
@@ -278,9 +231,8 @@ export async function GET({ request }: { request: Request }) {
 
   // 两边都拿，任何一边挂了都不影响另一边；两边都打乱后随机取
   const [netease, sekai] = await Promise.all([
-    fetchNeteaseTracks()
-      .then((all) => shuffle(all).slice(0, NETEASE_PICK))
-      .then((picked) => attachLyrics(picked))
+    Promise.resolve()
+      .then(() => attachLyrics(shuffle(fetchNeteaseTracks()).slice(0, NETEASE_PICK)))
       .catch((e) => {
         errors.push(`netease: ${e.message}`);
         return [] as Song[];
@@ -300,7 +252,7 @@ export async function GET({ request }: { request: Request }) {
       JSON.stringify({
         error: 'no music available',
         errors,
-        ...(debug ? { debug: { PLAYLIST_ID, sekaiApi: SEKAI_API, pick: SEKAI_PICK } } : {}),
+        ...(debug ? { debug: { neteasePool: NETEASE_TRACKS.length, sekaiApi: SEKAI_API, pick: SEKAI_PICK } } : {}),
       }),
       {
         status: 502,
