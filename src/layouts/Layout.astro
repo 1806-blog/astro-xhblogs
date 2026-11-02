@@ -7,6 +7,8 @@ import BackgroundSlider from '../components/BackgroundSlider';
 import SplashScreen from '../components/SplashScreen';
 import DanmakuBackground from '../components/DanmakuBackground';
 import MobileBackButton from '../components/MobileBackButton';
+import MusicCore from '../components/MusicCore';
+import { ClientRouter } from 'astro:transitions';
 
 interface Props {
   title?: string;
@@ -23,6 +25,8 @@ const skipSplash = Astro.url.searchParams.has('nosplash');
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!-- 客户端路由：页面切换不再整页重载，音乐才能不中断 -->
+    <ClientRouter />
     <title>{pageTitle}</title>
     <meta name="description" content={description ?? siteConfig.bio} />
     <link rel="icon" href={siteConfig.faviconUrl} />
@@ -72,6 +76,9 @@ const skipSplash = Astro.url.searchParams.has('nosplash');
     class="w-screen overflow-x-hidden min-h-full flex flex-col relative transition-colors duration-1000 bg-slate-50 dark:bg-slate-950 font-serif"
   >
     {!skipSplash && <SplashScreen client:load />}
+
+    <!-- 全站唯一的播放器实例，跨页面存活 -->
+    <MusicCore client:only="react" />
 
     <div id="app-mount-root" class="flex-1 flex flex-col transition-opacity duration-1000">
       <div class="fixed inset-0 z-[-1] pointer-events-none overflow-hidden">
